@@ -11,7 +11,10 @@ from passlib.context import CryptContext
 import jwt
 from jwt.exceptions import InvalidTokenError
 from datetime import datetime, timedelta, timezone
+
+#  лаба 2
 from fastapi.middleware.cors import CORSMiddleware
+
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import HTMLResponse
 
@@ -19,25 +22,6 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # Создание объекта FastAPI
 app = FastAPI()
-origins = [
-    "http://localhost.tiangolo.com",
-    "https://localhost.tiangolo.com",
-    "http://localhost",
-    "http://localhost:8080",
-    "http://127.0.0.1:8000"
-]
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-app.mount("/static", StaticFiles(directory="static"), name="static")
-@app.get("/", response_class=HTMLResponse)
-async def get_client():
-    with open("static/index.html", "r") as file:
-        return file.read()
 
 # Настройка базы данных MySQL
 SQLALCHEMY_DATABASE_URL = "mysql+pymysql://isp_r_Kubakova:12345@77.91.86.135/isp_r_Kubakova"
@@ -172,9 +156,18 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
+#laba 2
+@app.get("/", response_class=HTMLResponse)
+async def get_client():
+    with open("static/index.html", "r") as file:
+        return file.read()
+
 # Маршрут для удаления пользователя по ID
 @app.delete("/users/{user_id}", response_model=UserResponse)
 async def delete_user(user_id: int, current_user: Annotated[User, Depends(get_current_active_user)], db: Session = Depends(get_db)):
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -186,6 +179,9 @@ async def delete_user(user_id: int, current_user: Annotated[User, Depends(get_cu
 # Маршрут для обновления пользователя
 @app.put("/users/{user_id}", response_model=UserResponse)
 async def update_user(user_id: int, user_update: UserUpdate, current_user: Annotated[User, Depends(get_current_active_user)], db: Session = Depends(get_db)):
+    if current_user.id != user_id:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+
     user = db.query(User).filter(User.id == user_id).first()
     if user is None:
         raise HTTPException(status_code=404, detail="User not found")
@@ -249,3 +245,21 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=400, detail="Username or Email already registered")
+
+origins = [
+"http://localhost.tiangolo.com",
+"https://localhost.tiangolo.com",
+"http://localhost",
+"http://localhost:8080",
+"http://allowed-origin.com",
+]
+app.add_middleware(
+CORSMiddleware,
+# allow_origins=["*"],
+allow_origins=origins,
+allow_credentials=True,
+allow_methods=["*"],
+allow_headers=["*"],
+)
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
